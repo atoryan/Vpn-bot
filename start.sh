@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ~/Проекты/vpn-bot
+cd "$(dirname "$0")"
 source venv/bin/activate
 
 # Используем только HTTP прокси, отключаем SOCKS

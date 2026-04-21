@@ -15,11 +15,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /start - приветствие"""
     await update.message.reply_text(
         "👋 Привет! Я бот для управления VPN подписками.\n\n"
-        "Доступные команды:\n"
+        "Используй /help чтобы увидеть список команд."
+    )
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Команда /help - список команд"""
+    await update.message.reply_text(
+        "📋 Доступные команды:\n\n"
         "/create <имя> - Создать новую подписку\n"
         "/list - Показать все подписки\n"
         "/getlink <email> - Получить ссылку подключения\n"
-        "/delete <email> - Удалить подписку\n\n"
+        "/delete <email> - Удалить подписку\n"
+        "/help - Показать это сообщение\n\n"
         "Пример: /create Vasya"
     )
 
@@ -131,6 +138,7 @@ def main():
 
     # Регистрируем команды
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("create", create_subscription))
     app.add_handler(CommandHandler("list", list_subscriptions))
     app.add_handler(CommandHandler("getlink", get_link))
