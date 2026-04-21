@@ -3,8 +3,8 @@
 Telegram бот для управления VPN подписками через 3x-ui
 """
 
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 import config
 from xui_api import XUIClient
 
@@ -13,9 +13,16 @@ xui = XUIClient()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /start - приветствие"""
+    keyboard = [
+        [InlineKeyboardButton("📋 Список подписок", callback_data="list")],
+        [InlineKeyboardButton("❓ Помощь", callback_data="help")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     await update.message.reply_text(
         "👋 Привет! Я бот для управления VPN подписками.\n\n"
-        "Используй /help чтобы увидеть список команд."
+        "Используй кнопки ниже или команды.",
+        reply_markup=reply_markup
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -128,13 +135,48 @@ async def get_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ Не удалось получить ссылку!")
 
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик нажатий на кнопки"""
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "list":
+        clients = xui.get_clients()
+
+        if not clients:
+            await query.edit_message_text("📋 Подписок пока нет")
+            return
+
+        message = "📋 Активные подписки:\n\n"
+        for client in clients:
+            used_gb = client['allTime'] / (1024 ** 3)
+            total_gb = client['total'] / (1024 ** 3) if client['total'] > 0 else 0
+            traffic = f"{used_gb:.2f} ГБ" if total_gb == 0 else f"{used_gb:.2f}/{total_gb:.2f} ГБ"
+
+            message += (
+                f"👤 {client['subId']}\n"
+                f"📧 {client['email']}\n"
+                f"📊 Трафик: {traffic}\n"
+                f"{'✅' if client['enable'] else '❌'} {'Активна' if client['enable'] else 'Отключена'}\n\n"
+            )
+
+        await query.edit_message_text(message)
+
+    elif query.data == "help":
+        await query.edit_message_text(
+            "📋 Доступные команды:\n\n"
+            "/create <имя> - Создать новую подписку\n"
+            "/list - Показать все подписки\n"
+            "/getlink <email> - Получить ссылку подключения\n"
+            "/delete <email> - Удалить подписку\n"
+            "/help - Показать это сообщение\n\n"
+            "Пример: /create Vasya"
+        )
+
 def main():
     """Запуск бота"""
-    # Создаём приложение с прокси
-    app = (Application.builder()
-           .token(config.TELEGRAM_TOKEN)
-           .get_updates_proxy("http://127.0.0.1:2080")
-           .build())
+    # Создаём приложение
+    app = Application.builder().token(config.TELEGRAM_TOKEN).build()
 
     # Регистрируем команды
     app.add_handler(CommandHandler("start", start))
@@ -143,6 +185,7 @@ def main():
     app.add_handler(CommandHandler("list", list_subscriptions))
     app.add_handler(CommandHandler("getlink", get_link))
     app.add_handler(CommandHandler("delete", delete_subscription))
+    app.add_handler(CallbackQueryHandler(button_callback))
 
     # Запускаем бота
     print("🤖 Бот запущен!")
