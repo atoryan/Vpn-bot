@@ -15,13 +15,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /start - приветствие"""
     keyboard = [
         [InlineKeyboardButton("📋 Список подписок", callback_data="list")],
+        [InlineKeyboardButton("🔗 Получить ссылку", callback_data="getlink_menu")],
+        [InlineKeyboardButton("🗑 Удалить подписку", callback_data="delete_menu")],
         [InlineKeyboardButton("❓ Помощь", callback_data="help")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
         "👋 Привет! Я бот для управления VPN подписками.\n\n"
-        "Используй кнопки ниже или команды.",
+        "Выбери действие:",
         reply_markup=reply_markup
     )
 
@@ -160,9 +162,77 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{'✅' if client['enable'] else '❌'} {'Активна' if client['enable'] else 'Отключена'}\n\n"
             )
 
-        await query.edit_message_text(message)
+        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
+        await query.edit_message_text(message, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif query.data == "getlink_menu":
+        clients = xui.get_clients()
+
+        if not clients:
+            await query.edit_message_text("📋 Подписок пока нет")
+            return
+
+        keyboard = []
+        for client in clients:
+            keyboard.append([InlineKeyboardButton(
+                f"🔗 {client['subId']}",
+                callback_data=f"getlink_{client['email']}"
+            )])
+        keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="back")])
+
+        await query.edit_message_text(
+            "Выбери подписку для получения ссылки:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    elif query.data.startswith("getlink_"):
+        email = query.data.replace("getlink_", "")
+        link = xui.get_client_link(email)
+
+        if link:
+            keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="getlink_menu")]]
+            await query.edit_message_text(
+                f"🔗 Ссылка для подключения:\n\n`{link}`\n\nСкопируй эту ссылку и добавь в v2ray клиент",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        else:
+            await query.edit_message_text("❌ Не удалось получить ссылку!")
+
+    elif query.data == "delete_menu":
+        clients = xui.get_clients()
+
+        if not clients:
+            await query.edit_message_text("📋 Подписок пока нет")
+            return
+
+        keyboard = []
+        for client in clients:
+            keyboard.append([InlineKeyboardButton(
+                f"🗑 {client['subId']}",
+                callback_data=f"delete_{client['email']}"
+            )])
+        keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="back")])
+
+        await query.edit_message_text(
+            "Выбери подписку для удаления:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    elif query.data.startswith("delete_"):
+        email = query.data.replace("delete_", "")
+
+        if xui.delete_client(email):
+            keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
+            await query.edit_message_text(
+                "✅ Подписка удалена!",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        else:
+            await query.edit_message_text("❌ Ошибка удаления подписки!")
 
     elif query.data == "help":
+        keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
         await query.edit_message_text(
             "📋 Доступные команды:\n\n"
             "/create <имя> - Создать новую подписку\n"
@@ -170,7 +240,21 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/getlink <email> - Получить ссылку подключения\n"
             "/delete <email> - Удалить подписку\n"
             "/help - Показать это сообщение\n\n"
-            "Пример: /create Vasya"
+            "Пример: /create Vasya",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    elif query.data == "back":
+        keyboard = [
+            [InlineKeyboardButton("📋 Список подписок", callback_data="list")],
+            [InlineKeyboardButton("🔗 Получить ссылку", callback_data="getlink_menu")],
+            [InlineKeyboardButton("🗑 Удалить подписку", callback_data="delete_menu")],
+            [InlineKeyboardButton("❓ Помощь", callback_data="help")]
+        ]
+        await query.edit_message_text(
+            "👋 Привет! Я бот для управления VPN подписками.\n\n"
+            "Выбери действие:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
 def main():
