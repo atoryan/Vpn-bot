@@ -158,14 +158,26 @@ class XUIClient:
             print(f"Ошибка получения ссылки: {e}")
             return None
 
-    def delete_client(self, email: str) -> bool:
-        """Удалить клиента по email"""
+    def get_email_by_name(self, name: str) -> Optional[str]:
+        """Получить email клиента по имени (subId)"""
+        try:
+            clients = self.get_clients()
+            for client in clients:
+                if client.get('subId') == name:
+                    return client.get('email')
+            return None
+        except Exception as e:
+            print(f"Ошибка поиска клиента: {e}")
+            return None
+
+    def delete_client(self, identifier: str) -> bool:
+        """Удалить клиента по email или subId"""
         try:
             if not self.login():
                 print("Ошибка авторизации при удалении")
                 return False
 
-            url = f"{self.base_url}/panel/api/inbounds/{config.INBOUND_ID}/delClient/{email}"
+            url = f"{self.base_url}/panel/api/inbounds/{config.INBOUND_ID}/delClient/{identifier}"
             print(f"Удаление клиента: {url}")
 
             response = self.session.post(url)

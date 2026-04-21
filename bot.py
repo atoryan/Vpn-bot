@@ -33,10 +33,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📋 Доступные команды:\n\n"
         "/create <имя> - Создать новую подписку\n"
         "/list - Показать все подписки\n"
-        "/getlink <email> - Получить ссылку подключения\n"
-        "/delete <email> - Удалить подписку\n"
+        "/getlink <имя> - Получить ссылку подключения\n"
+        "/delete <имя> - Удалить подписку\n"
         "/help - Показать это сообщение\n\n"
-        "Пример: /create Vasya"
+        "Пример: /create Vasya\n"
+        "Пример: /delete Vasya"
     )
 
 async def create_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -101,15 +102,22 @@ async def delete_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Команда /delete - удалить подписку"""
     if not context.args:
         await update.message.reply_text(
-            "❌ Укажи email клиента!\n"
-            "Пример: /delete abc12345"
+            "❌ Укажи имя клиента!\n"
+            "Пример: /delete Vasya"
         )
         return
 
-    email = context.args[0]
-    await update.message.reply_text(f"⏳ Удаляю подписку {email}...")
+    identifier = context.args[0]
+    await update.message.reply_text(f"⏳ Удаляю подписку {identifier}...")
 
-    if xui.delete_client(email):
+    # Пробуем удалить по имени
+    if xui.delete_client(identifier):
+        await update.message.reply_text("✅ Подписка удалена!")
+        return
+
+    # Если не получилось, пробуем найти email по имени
+    email = xui.get_email_by_name(identifier)
+    if email and xui.delete_client(email):
         await update.message.reply_text("✅ Подписка удалена!")
     else:
         await update.message.reply_text("❌ Ошибка удаления подписки!")
@@ -118,13 +126,19 @@ async def get_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /getlink - получить ссылку подключения"""
     if not context.args:
         await update.message.reply_text(
-            "❌ Укажи email клиента!\n"
-            "Пример: /getlink abc12345"
+            "❌ Укажи имя клиента!\n"
+            "Пример: /getlink Vasya"
         )
         return
 
-    email = context.args[0]
-    await update.message.reply_text(f"⏳ Получаю ссылку для {email}...")
+    name = context.args[0]
+    await update.message.reply_text(f"⏳ Получаю ссылку для {name}...")
+
+    # Находим email по имени
+    email = xui.get_email_by_name(name)
+    if not email:
+        await update.message.reply_text("❌ Подписка с таким именем не найдена!")
+        return
 
     link = xui.get_client_link(email)
     if link:
@@ -222,10 +236,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data.startswith("delete_"):
         email = query.data.replace("delete_", "")
 
+        # Находим имя по email для отображения
+        clients = xui.get_clients()
+        client_name = None
+        for client in clients:
+            if client['email'] == email:
+                client_name = client['subId']
+                break
+
         if xui.delete_client(email):
             keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="back")]]
             await query.edit_message_text(
-                "✅ Подписка удалена!",
+                f"✅ Подписка {client_name} удалена!",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         else:
@@ -237,10 +259,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📋 Доступные команды:\n\n"
             "/create <имя> - Создать новую подписку\n"
             "/list - Показать все подписки\n"
-            "/getlink <email> - Получить ссылку подключения\n"
-            "/delete <email> - Удалить подписку\n"
+            "/getlink <имя> - Получить ссылку подключения\n"
+            "/delete <имя> - Удалить подписку\n"
             "/help - Показать это сообщение\n\n"
-            "Пример: /create Vasya",
+            "Пример: /create Vasya\n"
+            "Пример: /delete Vasya",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
