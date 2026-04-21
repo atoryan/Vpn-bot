@@ -1,0 +1,16 @@
+[Unit]
+Description=VPN Bot для управления 3x-ui
+After=network.target
+
+[Service]
+Type=simple
+User=atoryan
+WorkingDirectory=/home/atoryan/Проекты/vpn-bot
+Environment="http_proxy=http://127.0.0.1:2080"
+Environment="https_proxy=http://127.0.0.1:2080"
+ExecStart=/home/atoryan/Проекты/vpn-bot/venv/bin/python /home/atoryan/Проекты/vpn-bot/bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
