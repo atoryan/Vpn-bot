@@ -107,16 +107,22 @@ async def delete_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return
 
-    identifier = context.args[0]
-    await update.message.reply_text(f"⏳ Удаляю подписку {identifier}...")
+    name = context.args[0]
+    await update.message.reply_text(f"⏳ Удаляю подписку {name}...")
 
-    # Пробуем удалить по имени
-    if xui.delete_client(identifier):
+    # Пробуем получить UUID по имени
+    client_uuid = xui.get_client_uuid(name)
+    if client_uuid and xui.delete_client(client_uuid):
         await update.message.reply_text("✅ Подписка удалена!")
         return
 
-    # Если не получилось, пробуем найти email по имени
-    email = xui.get_email_by_name(identifier)
+    # Пробуем по имени напрямую
+    if xui.delete_client(name):
+        await update.message.reply_text("✅ Подписка удалена!")
+        return
+
+    # Пробуем по email
+    email = xui.get_email_by_name(name)
     if email and xui.delete_client(email):
         await update.message.reply_text("✅ Подписка удалена!")
     else:

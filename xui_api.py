@@ -170,6 +170,32 @@ class XUIClient:
             print(f"Ошибка поиска клиента: {e}")
             return None
 
+    def get_client_uuid(self, name: str) -> Optional[str]:
+        """Получить UUID клиента по имени (subId)"""
+        try:
+            if not self.login():
+                return None
+
+            response = self.session.get(f"{self.base_url}/panel/api/inbounds/list")
+            data = response.json()
+
+            if not data.get("success"):
+                return None
+
+            for inbound in data.get("obj", []):
+                if inbound["id"] == config.INBOUND_ID:
+                    settings = json.loads(inbound.get("settings", "{}"))
+                    clients = settings.get("clients", [])
+
+                    for client in clients:
+                        if client.get("subId") == name:
+                            return client.get("id")
+
+            return None
+        except Exception as e:
+            print(f"Ошибка получения UUID: {e}")
+            return None
+
     def delete_client(self, identifier: str) -> bool:
         """Удалить клиента по email или subId"""
         try:
