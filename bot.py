@@ -10,6 +10,9 @@ from xui_api import XUIClient
 
 xui = XUIClient()
 
+def is_allowed(update: Update) -> bool:
+    return update.effective_user.id in config.ALLOWED_USERS
+
 def main_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📋 Статистика", callback_data="list")],
@@ -18,12 +21,16 @@ def main_keyboard():
     ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update):
+        return
     await update.message.reply_text(
         "👋 Привет! Выбери действие:",
         reply_markup=main_keyboard()
     )
 
 async def list_subscriptions(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update):
+        return
     await update.message.reply_text("⏳ Загружаю статистику...")
     clients = xui.get_clients()
 
@@ -48,6 +55,8 @@ async def list_subscriptions(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(message)
 
 async def get_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update):
+        return
     if not context.args:
         await update.message.reply_text("❌ Укажи имя: /getlink Vasya")
         return
@@ -63,6 +72,8 @@ async def get_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Не удалось получить ссылку!")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update):
+        return
     query = update.callback_query
     await query.answer()
 
