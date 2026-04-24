@@ -7,8 +7,11 @@ import json
 import random
 import string
 import uuid
+import urllib3
 from typing import Optional, Dict, List
 import config
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class XUIClient:
     """Клиент для работы с 3x-ui API"""
@@ -18,7 +21,7 @@ class XUIClient:
         self.username = config.XUI_USERNAME
         self.password = config.XUI_PASSWORD
         self.session = requests.Session()
-        self.session.verify = False  # Отключаем проверку SSL (т.к. самоподписанный сертификат)
+        self.session.verify = False
 
     def login(self) -> bool:
         """Авторизация в 3x-ui"""
@@ -36,26 +39,59 @@ class XUIClient:
             print(f"Ошибка авторизации: {e}")
             return False
 
-    def get_clients(self) -> List[Dict]:
-        """Получить список всех клиентов"""
+    def get_all_inbounds(self) -> List[Dict]:
+        """Получить все inbound'ы"""
         try:
-            # Сначала авторизуемся
             if not self.login():
                 return []
-
-            # Получаем список inbounds
             response = self.session.get(f"{self.base_url}/panel/api/inbounds/list")
             data = response.json()
-
             if not data.get("success"):
                 return []
-
-            # Ищем наш inbound
-            for inbound in data.get("obj", []):
-                if inbound["id"] == config.INBOUND_ID:
-                    return inbound.get("clientStats", [])
-
+            return data.get("obj", [])
+        except Exception as e:
+            print(f"Ошибка получения inbounds: {e}")
             return []
+
+    def get_clients(self) -> List[Dict]:
+        """Получить статистику по всем подпискам (subId) со всех inbound'ов"""
+        try:
+            inbounds = self.get_all_inbounds()
+            if not inbounds:
+                return []
+
+            # Группируем по subId, суммируем трафик
+            subs: Dict[str, Dict] = {}
+
+            for inbound in inbounds:
+                for stat in inbound.get("clientStats", []):
+                    sub_id = stat.get("subId") or stat.get("email", "")
+                    if not sub_id:
+                        continue
+
+                    if sub_id not in subs:
+                        subs[sub_id] = {
+                            "subId": sub_id,
+                            "email": stat.get("email", ""),
+                            "enable": stat.get("enable", True),
+                            "up": 0,
+                            "down": 0,
+                            "allTime": 0,
+                            "total": stat.get("total", 0),
+                            "expiryTime": stat.get("expiryTime", 0),
+                            "inbounds": []
+                        }
+
+                    subs[sub_id]["up"] += stat.get("up", 0)
+                    subs[sub_id]["down"] += stat.get("down", 0)
+                    subs[sub_id]["allTime"] += stat.get("up", 0) + stat.get("down", 0)
+                    subs[sub_id]["inbounds"].append(inbound.get("remark", f"inbound {inbound['id']}"))
+
+                    # Если хоть один inbound отключён — считаем отключённым
+                    if not stat.get("enable", True):
+                        subs[sub_id]["enable"] = False
+
+            return list(subs.values())
         except Exception as e:
             print(f"Ошибка получения клиентов: {e}")
             return []
@@ -132,65 +168,37 @@ class XUIClient:
             print(f"Ошибка создания клиента: {e}")
             return None
 
-    def get_client_link(self, email: str) -> Optional[str]:
-        """Получить ссылку подключения для клиента"""
+    def get_client_link(self, sub_id: str) -> Optional[str]:
+        """Получить subscription ссылку для клиента по subId"""
         try:
-            if not self.login():
-                return None
-
-            response = self.session.get(f"{self.base_url}/panel/api/inbounds/list")
-            data = response.json()
-
-            if not data.get("success"):
-                return None
-
-            for inbound in data.get("obj", []):
-                if inbound["id"] == config.INBOUND_ID:
-                    settings = json.loads(inbound.get("settings", "{}"))
-                    clients = settings.get("clients", [])
-
-                    for client in clients:
-                        if client.get("email") == email:
-                            return f"{self.base_url}/{config.INBOUND_ID}/{email}"
-
-            return None
+            return f"{self.base_url}/sub/{sub_id}"
         except Exception as e:
             print(f"Ошибка получения ссылки: {e}")
             return None
 
     def get_email_by_name(self, name: str) -> Optional[str]:
-        """Получить email клиента по имени (subId)"""
+        """Получить email клиента по имени (subId) — ищет по всем inbound'ам"""
         try:
-            clients = self.get_clients()
-            for client in clients:
-                if client.get('subId') == name:
-                    return client.get('email')
+            inbounds = self.get_all_inbounds()
+            for inbound in inbounds:
+                settings = json.loads(inbound.get("settings", "{}"))
+                for client in settings.get("clients", []):
+                    if client.get("subId") == name:
+                        return client.get("email")
             return None
         except Exception as e:
             print(f"Ошибка поиска клиента: {e}")
             return None
 
     def get_client_uuid(self, name: str) -> Optional[str]:
-        """Получить UUID клиента по имени (subId)"""
+        """Получить UUID клиента по имени (subId) — ищет по всем inbound'ам"""
         try:
-            if not self.login():
-                return None
-
-            response = self.session.get(f"{self.base_url}/panel/api/inbounds/list")
-            data = response.json()
-
-            if not data.get("success"):
-                return None
-
-            for inbound in data.get("obj", []):
-                if inbound["id"] == config.INBOUND_ID:
-                    settings = json.loads(inbound.get("settings", "{}"))
-                    clients = settings.get("clients", [])
-
-                    for client in clients:
-                        if client.get("subId") == name:
-                            return client.get("id")
-
+            inbounds = self.get_all_inbounds()
+            for inbound in inbounds:
+                settings = json.loads(inbound.get("settings", "{}"))
+                for client in settings.get("clients", []):
+                    if client.get("subId") == name:
+                        return client.get("id")
             return None
         except Exception as e:
             print(f"Ошибка получения UUID: {e}")

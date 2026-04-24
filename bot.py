@@ -83,16 +83,16 @@ async def list_subscriptions(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # Формируем красивый список
     message = "📋 Активные подписки:\n\n"
     for client in clients:
-        # Конвертируем байты в ГБ
         used_gb = client['allTime'] / (1024 ** 3)
         total_gb = client['total'] / (1024 ** 3) if client['total'] > 0 else 0
 
         traffic = f"{used_gb:.2f} ГБ" if total_gb == 0 else f"{used_gb:.2f}/{total_gb:.2f} ГБ"
+        inbounds_str = ", ".join(client.get('inbounds', [])) or "—"
 
         message += (
             f"👤 {client['subId']}\n"
-            f"📧 {client['email']}\n"
             f"📊 Трафик: {traffic}\n"
+            f"🌐 Inbound'ы: {inbounds_str}\n"
             f"{'✅' if client['enable'] else '❌'} {'Активна' if client['enable'] else 'Отключена'}\n\n"
         )
 
@@ -140,18 +140,12 @@ async def get_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = context.args[0]
     await update.message.reply_text(f"⏳ Получаю ссылку для {name}...")
 
-    # Находим email по имени
-    email = xui.get_email_by_name(name)
-    if not email:
-        await update.message.reply_text("❌ Подписка с таким именем не найдена!")
-        return
-
-    link = xui.get_client_link(email)
+    link = xui.get_client_link(name)
     if link:
         await update.message.reply_text(
             f"🔗 Ссылка для подключения:\n\n"
             f"`{link}`\n\n"
-            f"Скопируй эту ссылку и добавь в v2ray клиент",
+            f"Добавь эту ссылку как subscription в v2ray/sing-box клиент",
             parse_mode='Markdown'
         )
     else:
@@ -174,11 +168,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             used_gb = client['allTime'] / (1024 ** 3)
             total_gb = client['total'] / (1024 ** 3) if client['total'] > 0 else 0
             traffic = f"{used_gb:.2f} ГБ" if total_gb == 0 else f"{used_gb:.2f}/{total_gb:.2f} ГБ"
+            inbounds_str = ", ".join(client.get('inbounds', [])) or "—"
 
             message += (
                 f"👤 {client['subId']}\n"
-                f"📧 {client['email']}\n"
                 f"📊 Трафик: {traffic}\n"
+                f"🌐 Inbound'ы: {inbounds_str}\n"
                 f"{'✅' if client['enable'] else '❌'} {'Активна' if client['enable'] else 'Отключена'}\n\n"
             )
 
@@ -196,7 +191,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for client in clients:
             keyboard.append([InlineKeyboardButton(
                 f"🔗 {client['subId']}",
-                callback_data=f"getlink_{client['email']}"
+                callback_data=f"getlink_{client['subId']}"
             )])
         keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="back")])
 
@@ -206,13 +201,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data.startswith("getlink_"):
-        email = query.data.replace("getlink_", "")
-        link = xui.get_client_link(email)
+        sub_id = query.data.replace("getlink_", "")
+        link = xui.get_client_link(sub_id)
 
         if link:
             keyboard = [[InlineKeyboardButton("◀️ Назад", callback_data="getlink_menu")]]
             await query.edit_message_text(
-                f"🔗 Ссылка для подключения:\n\n`{link}`\n\nСкопируй эту ссылку и добавь в v2ray клиент",
+                f"🔗 Ссылка для подключения:\n\n`{link}`\n\nДобавь как subscription в v2ray/sing-box клиент",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
